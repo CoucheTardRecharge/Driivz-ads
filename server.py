@@ -36,13 +36,8 @@ from urllib.parse import urlparse, parse_qs
 
 # Define which properties have ads enabled.
 ADS_ENABLED_PROPERTIES = {
-    "486",
-    "6001124",
-    "6000930",
-    "451",
-    "620",
-    "17",
-    "1",
+    "193",
+    "45",
 }
 
 
