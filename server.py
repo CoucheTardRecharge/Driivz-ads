@@ -34,7 +34,7 @@ ADS_ENABLED_PROPERTIES = {
     "45",
 }
 
-CURRENT_AD = "promo.png"
+CURRENT_AD = "image 220.png"
 
 
 class DriivzAdHandler(BaseHTTPRequestHandler):
