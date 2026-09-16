@@ -21,7 +21,7 @@ from urllib.parse import urlparse, parse_qs
 # ==========================================================
 
 ADS_BY_PROPERTY = {
-    "193": "Car Wash.png",
+    "193": "Car-Wash.png",
     "45": "promo-combo.png",
 }
 
