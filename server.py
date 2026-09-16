@@ -5,35 +5,17 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 
 # ==========================================================
-# CONFIGURATION DES PUBLICITÉS
-# ==========================================================
-#
-# Associer chaque Property ID Driivz à son image.
-#
-# Les images doivent être dans le dossier :
-#
-# Assets/
-#
-# Exemple :
-# 193 -> Car-Wash.png
-# 45  -> promo-combo.png
-#
-# Tous les autres Property ID recevront :
-# {"ads": 0}
+# CONFIGURATION
 # ==========================================================
 
 ADS_BY_PROPERTY = {
-    "193": "Car-Wash.png",
+    "193": "Car-wash.png",
     "45": "promo-combo.png",
 }
 
 
 # ==========================================================
-# DOSSIERS
-# ==========================================================
-#
-# On détermine le dossier où se trouve server.py.
-# Cela évite les problèmes de Working Directory sur Render.
+# PATHS
 # ==========================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -42,54 +24,20 @@ ASSETS_DIR = os.path.join(BASE_DIR, "Assets")
 
 class DriivzAdHandler(BaseHTTPRequestHandler):
 
-    def _set_headers(
-        self,
-        status_code: int = 200,
-        content_type: str = "application/json"
-    ) -> None:
-
-        self.send_response(status_code)
-
-        self.send_header(
-            "Content-Type",
-            content_type
-        )
-
-        self.send_header(
-            "Access-Control-Allow-Origin",
-            "*"
-        )
-
-        self.send_header(
-            "Cache-Control",
-            "no-cache, no-store, must-revalidate"
-        )
-
-        self.send_header(
-            "Pragma",
-            "no-cache"
-        )
-
-        self.send_header(
-            "Expires",
-            "0"
-        )
-
+    def send_headers(self, status=200, content_type="application/json"):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.end_headers()
 
 
     # ======================================================
-    # HEAD
-    # ======================================================
-    #
-    # Render peut envoyer une requête HEAD pour vérifier
-    # que le serveur répond.
+    # RENDER HEALTH CHECK
     # ======================================================
 
-    def do_HEAD(self) -> None:
-
+    def do_HEAD(self):
         self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
         self.end_headers()
 
 
@@ -97,297 +45,229 @@ class DriivzAdHandler(BaseHTTPRequestHandler):
     # GET
     # ======================================================
 
-    def do_GET(self) -> None:
+    def do_GET(self):
 
-        parsed_path = urlparse(self.path)
+        parsed = urlparse(self.path)
 
-        path = unquote(parsed_path.path)
+        path = unquote(parsed.path)
+        query = parse_qs(parsed.query)
 
-        query = parse_qs(
-            parsed_path.query
-        )
-
-        property_id = query.get(
-            "property",
-            [None]
-        )[0]
-
-        country = query.get(
-            "country",
-            [None]
-        )[0]
+        property_id = query.get("property", [None])[0]
+        country = query.get("country", [None])[0]
 
 
         # ==================================================
-        # ASSETS / IMAGES
+        # HOME
         # ==================================================
-        #
-        # Exemple :
-        #
-        # /Assets/Car-Wash.png
-        #
-        # devient :
-        #
-        # /.../Assets/Car-Wash.png
-        #
+
+        if path == "/":
+
+            self.send_headers(
+                200,
+                "text/plain; charset=utf-8"
+            )
+
+            message = (
+                "Driivz Ads Server OK\n"
+                f"BASE_DIR: {BASE_DIR}\n"
+                f"ASSETS_DIR: {ASSETS_DIR}\n"
+                f"Assets exists: {os.path.isdir(ASSETS_DIR)}\n"
+            )
+
+            if os.path.isdir(ASSETS_DIR):
+                message += f"Assets: {os.listdir(ASSETS_DIR)}\n"
+
+            self.wfile.write(
+                message.encode("utf-8")
+            )
+
+            return
+
+
+        # ==================================================
+        # ASSETS
         # ==================================================
 
         if path.startswith("/Assets/"):
 
-            filename = os.path.basename(path)
+            filename = path[len("/Assets/"):]
 
             file_path = os.path.join(
                 ASSETS_DIR,
                 filename
             )
 
-
-            # ==============================================
-            # DIAGNOSTIC RENDER
-            # ==============================================
-
-            print("")
-            print("========== ASSET REQUEST ==========")
-            print(f"Requested URL: {path}")
-            print(f"Filename: {filename}")
-            print(f"BASE_DIR: {BASE_DIR}")
-            print(f"ASSETS_DIR: {ASSETS_DIR}")
-            print(f"Full path: {file_path}")
             print(
-                f"File exists: "
-                f"{os.path.exists(file_path)}"
+                f"ASSET REQUEST: {filename}",
+                flush=True
             )
 
-            try:
+            print(
+                f"FULL PATH: {file_path}",
+                flush=True
+            )
 
-                assets_content = os.listdir(
-                    ASSETS_DIR
-                )
+            print(
+                f"EXISTS: {os.path.isfile(file_path)}",
+                flush=True
+            )
+
+            if os.path.isdir(ASSETS_DIR):
 
                 print(
-                    f"Assets content: "
-                    f"{assets_content}"
+                    f"FILES: {os.listdir(ASSETS_DIR)}",
+                    flush=True
                 )
 
-            except Exception as e:
+            else:
 
                 print(
-                    f"Cannot read Assets folder: "
-                    f"{e}"
+                    "ASSETS DIRECTORY DOES NOT EXIST",
+                    flush=True
                 )
 
-            print("===================================")
-            print("")
 
+            if not os.path.isfile(file_path):
 
-            # ==============================================
-            # IMAGE INTROUVABLE
-            # ==============================================
-
-            if not os.path.exists(file_path):
-
-                self._set_headers(
+                self.send_headers(
                     404,
                     "application/json"
                 )
 
+                response = {
+                    "error": "Image not found",
+                    "requested_file": filename,
+                    "assets_directory": ASSETS_DIR,
+                    "assets_directory_exists":
+                        os.path.isdir(ASSETS_DIR),
+                    "available_files":
+                        os.listdir(ASSETS_DIR)
+                        if os.path.isdir(ASSETS_DIR)
+                        else []
+                }
+
                 self.wfile.write(
-                    json.dumps({
-                        "error": "Image not found",
-                        "requested_file": filename
-                    }).encode("utf-8")
+                    json.dumps(
+                        response,
+                        indent=2
+                    ).encode("utf-8")
                 )
 
                 return
 
 
-            # ==============================================
-            # CONTENT TYPE
-            # ==============================================
-
-            lower_file = filename.lower()
-
-            if lower_file.endswith(".png"):
-
-                content_type = "image/png"
-
-            elif lower_file.endswith(
-                (".jpg", ".jpeg")
-            ):
-
-                content_type = "image/jpeg"
-
-            elif lower_file.endswith(".webp"):
-
-                content_type = "image/webp"
-
-            elif lower_file.endswith(".gif"):
-
-                content_type = "image/gif"
-
-            else:
-
-                content_type = (
-                    "application/octet-stream"
-                )
+            extension = os.path.splitext(
+                filename
+            )[1].lower()
 
 
-            # ==============================================
-            # ENVOI DE L'IMAGE
-            # ==============================================
+            content_types = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".gif": "image/gif",
+            }
 
-            self._set_headers(
+
+            content_type = content_types.get(
+                extension,
+                "application/octet-stream"
+            )
+
+
+            self.send_headers(
                 200,
                 content_type
             )
 
-            with open(
-                file_path,
-                "rb"
-            ) as file:
 
-                self.wfile.write(
-                    file.read()
-                )
+            with open(file_path, "rb") as f:
+                self.wfile.write(f.read())
 
             return
 
 
         # ==================================================
-        # ÉTAPE 1 — DRIIVZ CHECK
-        # ==================================================
-        #
-        # Exemple :
-        #
-        # /ads/check?property=193&country=ca
-        #
-        # 193 -> {"ads": 1}
-        # 45  -> {"ads": 1}
-        #
-        # Autre -> {"ads": 0}
-        #
+        # DRIIVZ CHECK
         # ==================================================
 
         if path == "/ads/check":
 
             if property_id is None:
 
-                self._set_headers(
-                    400,
-                    "application/json"
-                )
+                self.send_headers(400)
 
                 self.wfile.write(
                     json.dumps({
-                        "error":
-                        "Missing 'property' parameter"
-                    }).encode("utf-8")
+                        "error": "Missing property"
+                    }).encode()
                 )
 
                 return
 
 
-            has_ads = (
+            ads = (
                 1
                 if property_id in ADS_BY_PROPERTY
                 else 0
             )
 
 
-            print(
-                f"ADS CHECK | "
-                f"Property: {property_id} | "
-                f"Country: {country} | "
-                f"Ads: {has_ads}"
-            )
+            self.send_headers(200)
 
-
-            self._set_headers(
-                200,
-                "application/json"
-            )
 
             self.wfile.write(
                 json.dumps({
-                    "ads": has_ads
-                }).encode("utf-8")
+                    "ads": ads
+                }).encode()
             )
 
             return
 
 
         # ==================================================
-        # ÉTAPE 2 — DRIIVZ CONTENT
-        # ==================================================
-        #
-        # 193 -> Car-Wash.png
-        # 45  -> promo-combo.png
-        #
+        # DRIIVZ CONTENT
         # ==================================================
 
         if path == "/ads/content":
 
             if property_id is None:
 
-                self._set_headers(
-                    400,
-                    "application/json"
-                )
+                self.send_headers(400)
 
                 self.wfile.write(
                     json.dumps({
-                        "error":
-                        "Missing 'property' parameter"
-                    }).encode("utf-8")
+                        "error": "Missing property"
+                    }).encode()
                 )
 
                 return
 
 
-            # Cherche l'image associée au Property ID
-
-            ad_image = ADS_BY_PROPERTY.get(
+            image = ADS_BY_PROPERTY.get(
                 property_id
             )
 
 
-            # ==============================================
-            # AUCUNE PUB CONFIGURÉE
-            # ==============================================
+            if image is None:
 
-            if ad_image is None:
-
-                self._set_headers(
-                    404,
-                    "application/json"
-                )
+                self.send_headers(404)
 
                 self.wfile.write(
                     json.dumps({
                         "error":
-                        "No ad configured for this property"
-                    }).encode("utf-8")
+                        "No ad configured for property"
+                    }).encode()
                 )
 
                 return
 
 
-            print(
-                f"ADS CONTENT | "
-                f"Property: {property_id} | "
-                f"Country: {country} | "
-                f"Image: {ad_image}"
-            )
-
-
-            # ==============================================
-            # HTML ENVOYÉ À DRIIVZ
-            # ==============================================
-
-            html_content = f"""
+            html = f"""
 <!DOCTYPE html>
 
-<html lang="fr">
+<html>
 
 <head>
 
@@ -398,31 +278,21 @@ class DriivzAdHandler(BaseHTTPRequestHandler):
     content="width=device-width, initial-scale=1.0"
 >
 
-<title>
-Couche-Tard Recharge
-</title>
-
 <style>
 
 html,
 body {{
     margin: 0;
     padding: 0;
-
     width: 100%;
     height: 100%;
-
-    background: #ffffff;
-
     overflow: hidden;
 }}
 
 img {{
     width: 100%;
-    height: 100vh;
-
+    height: 100%;
     object-fit: cover;
-
     display: block;
 }}
 
@@ -430,13 +300,9 @@ img {{
 
 </head>
 
-
 <body>
 
-<img
-    src="/Assets/{ad_image}"
-    alt="Promotion Couche-Tard"
->
+<img src="/Assets/{image}">
 
 </body>
 
@@ -444,33 +310,14 @@ img {{
 """
 
 
-            self._set_headers(
+            self.send_headers(
                 200,
                 "text/html; charset=utf-8"
             )
 
-            self.wfile.write(
-                html_content.encode(
-                    "utf-8"
-                )
-            )
-
-            return
-
-
-        # ==================================================
-        # HOME / HEALTH CHECK
-        # ==================================================
-
-        if path == "/":
-
-            self._set_headers(
-                200,
-                "text/plain; charset=utf-8"
-            )
 
             self.wfile.write(
-                b"Driivz Ads Server - OK"
+                html.encode("utf-8")
             )
 
             return
@@ -480,15 +327,12 @@ img {{
         # 404
         # ==================================================
 
-        self._set_headers(
-            404,
-            "application/json"
-        )
+        self.send_headers(404)
 
         self.wfile.write(
             json.dumps({
                 "error": "Not found"
-            }).encode("utf-8")
+            }).encode()
         )
 
 
@@ -496,10 +340,7 @@ img {{
 # SERVER
 # ==========================================================
 
-def run_server(
-    server_class=HTTPServer,
-    handler_class=DriivzAdHandler
-) -> None:
+def run_server():
 
     port = int(
         os.getenv(
@@ -508,70 +349,45 @@ def run_server(
         )
     )
 
-    server_address = (
-        "",
-        port
+
+    print(
+        f"BASE_DIR = {BASE_DIR}",
+        flush=True
     )
 
-    httpd = server_class(
-        server_address,
-        handler_class
+    print(
+        f"ASSETS_DIR = {ASSETS_DIR}",
+        flush=True
+    )
+
+    print(
+        f"ASSETS EXISTS = {os.path.isdir(ASSETS_DIR)}",
+        flush=True
     )
 
 
-    print("")
-    print("====================================")
-    print("DRIIVZ ADS SERVER")
-    print("====================================")
-    print(f"Port: {port}")
-    print(f"Base directory: {BASE_DIR}")
-    print(f"Assets directory: {ASSETS_DIR}")
-
-    try:
+    if os.path.isdir(ASSETS_DIR):
 
         print(
-            f"Assets found: "
-            f"{os.listdir(ASSETS_DIR)}"
+            f"ASSETS FILES = {os.listdir(ASSETS_DIR)}",
+            flush=True
         )
 
-    except Exception as e:
 
-        print(
-            f"ERROR reading Assets: {e}"
-        )
-
-    print("")
-
-    print("Configured properties:")
-
-    for property_id, image in ADS_BY_PROPERTY.items():
-
-        print(
-            f"  Property {property_id}"
-            f" -> {image}"
-        )
-
-    print("====================================")
-    print("")
+    server = HTTPServer(
+        ("", port),
+        DriivzAdHandler
+    )
 
 
-    try:
-
-        httpd.serve_forever()
-
-    except KeyboardInterrupt:
-
-        pass
-
-    finally:
-
-        httpd.server_close()
+    print(
+        f"Serving on port {port}",
+        flush=True
+    )
 
 
-# ==========================================================
-# START
-# ==========================================================
+    server.serve_forever()
+
 
 if __name__ == "__main__":
-
     run_server()
