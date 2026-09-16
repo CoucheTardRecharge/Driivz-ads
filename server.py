@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 # ==========================================================
 
 ADS_BY_PROPERTY = {
-    "45": "Car-wash.png"
+    "1148461": "Car-wash.png"
 }
 
 
