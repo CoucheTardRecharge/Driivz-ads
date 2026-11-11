@@ -10,8 +10,10 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 ADS_BY_PROPERTY = {
     "1148461": "car-wash-v2.png",
-    "45": "comborecharger.png",
 }
+
+for property_id in ["45", "74"]:
+    ADS_BY_PROPERTY[property_id] = "comborecharger.png"
 
 
 # ==========================================================
